@@ -25,11 +25,12 @@ jobs:
       - name: 开始
         env:
           USER: ${{ secrets.ZEPP_USER }}
-          PWD: ${{ secrets.ZEPP_PWD }}
+          ZEPP_PWD: ${{ secrets.ZEPP_PWD }}
           MIN_STEP: "10000"
           MAX_STEP: "15000"
           SLEEP_GAP: "5"
           USE_CONCURRENT: "False"
         run: |
           pip3 install -r requirements.txt
-          python3 main.py
+          # bash 启动时会把 PWD 改成当前目录，所以用 env 单独把密码传给脚本
+          env PWD="$ZEPP_PWD" python3 main.py
