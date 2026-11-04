@@ -170,6 +170,7 @@ class MiMotionRunner:
         user_token_info["login_token"] = login_token
         user_token_info["app_token"] = app_token
         user_token_info["user_id"] = user_id
+        self.user_id = user_id
         # 记录token获取时间
         user_token_info["access_token_time"] = get_time()
         user_token_info["login_token_time"] = get_time()
