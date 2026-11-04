@@ -1,0 +1,37 @@
+name: 刷步数（xmSport 方案）
+
+on:
+  schedule:
+    # UTC 14:15，即北京时间 22:15
+    - cron: '15 14 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  xmsport:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TZ: Asia/Shanghai
+    steps:
+      - name: 拉取 chiupam/xmSport
+        uses: actions/checkout@v4
+        with:
+          repository: chiupam/xmSport
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - name: 运行
+        env:
+          PHONE_NUMBER: ${{ secrets.ZEPP_USER }}
+          PASSWORD: ${{ secrets.ZEPP_PWD }}
+          xmSportMinStep: '10000'
+          xmSportMaxStep: '15000'
+          ENABLE_NOTIFY: 'false'
+        run: |
+          export DATA_JSON="$(cat dist/data.txt)"
+          node dist/index.js
