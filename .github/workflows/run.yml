@@ -2,40 +2,34 @@ name: 刷步数
 
 on:
   schedule:
-    - cron: '51 10,12,14 * * *'
+    # UTC 时间，对应北京时间 22:05 和 23:05（脚本按时间比例缩放步数，22:00 后才是完整的 10000-15000）
+    - cron: '5 14,15 * * *'
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
       - name: Checkout codes
         uses: actions/checkout@v5
-        with:
-          token: ${{ secrets.PAT }} #此处PAT需要申请，教程详见：README
-      - name: Update system and install zsh
-        run: |
-          sudo -E apt-get -qq update
-          sudo -E apt-get install zsh -y
-          
+
       - name: 初始化Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.10"
-          
+
       - name: 开始
         env:
-            CONFIG: ${{ secrets.CONFIG }}
-            AES_KEY: ${{ secrets.AES_KEY }}
+          USER: ${{ secrets.ZEPP_USER }}
+          PWD: ${{ secrets.ZEPP_PWD }}
+          MIN_STEP: "10000"
+          MAX_STEP: "15000"
+          SLEEP_GAP: "5"
+          USE_CONCURRENT: "False"
         run: |
           pip3 install -r requirements.txt
           python3 main.py
-
-      - name: persist tokens
-        run: |
-          git config user.name github-actions
-          git config user.email github-actions@users.noreply.github.com
-          git add .
-          git commit -m "persist tokens trigger by ${{ github.event_name }}"
-          git push origin master
