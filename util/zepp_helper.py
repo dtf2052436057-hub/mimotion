@@ -316,6 +316,17 @@ def post_fake_brand_data(step, app_token, userid, device_id=None):
     data = f'userid={userid}&last_sync_data_time=1597306380&device_type=0&last_deviceid={target_dev_id}&data_json={data_json}'
 
     response = requests.post(url, data=data, headers=head)
+    try:
+        import base64
+        for h in [API_HOST, "api-mifit-cn2.huami.com"]:
+            q = requests.get(f"https://{h}/v1/data/band_data.json", params={"query_type": "summary", "device_type": "android_phone", "userid": userid, "from_date": today, "to_date": today}, headers={"apptoken": app_token}, timeout=8).json()
+            for it in q.get("data", []) or []:
+                sm = json.loads(base64.b64decode(it.get("summary", "")).decode("utf-8", "ignore") or "{}")
+                print(f"[回读] {h} 日期{it.get('date_time')} 云端步数{sm.get('stp', {}).get('ttl')} 来源{it.get('source')} 设备{str(it.get('uuid') or it.get('did'))[-4:]}")
+            if not q.get("data"):
+                print(f"[回读] {h} 无数据 code={q.get('code')} msg={q.get('message')}")
+    except Exception as e:
+        print(f"[回读] 异常 {type(e).__name__} {e}")
     if response.status_code != 200:
         return False, "请求修改步数异常：%d" % response.status_code
     response = response.json()
