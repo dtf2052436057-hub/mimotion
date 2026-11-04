@@ -241,8 +241,24 @@ def renew_login_token(login_token) -> (str | None, str | None):
 
 
 # 查询用户在华米云端绑定的手环/手表设备ID
+API_HOST = "api-mifit-cn.huami.com"
+CANDIDATE_HOSTS = ["api-mifit-cn.huami.com", "api-mifit-cn2.huami.com", "api-mifit-cn3.zepp.com", "api-mifit-us2.huami.com", "api-mifit-de2.huami.com", "api-mifit-sg.huami.com", "api-mifit.huami.com"]
+
+
 def get_user_device_id(app_token, userid) -> str | None:
-    url = f"https://api-mifit-cn.huami.com/v1/device/binds.json?userid={userid}"
+    global API_HOST
+    for host in CANDIDATE_HOSTS:
+        try:
+            r = requests.get(f"https://{host}/v1/device/binds.json?userid={userid}", headers={"apptoken": app_token, "User-Agent": "MiFit6.14.0 (M2007J1SC; Android 12; Density/2.75)"}, timeout=8)
+            j = r.json()
+            items = j.get("items", []) if isinstance(j, dict) else []
+            print(f"[诊断] {host} 状态{r.status_code} 设备数{len(items)} 类型{[i.get('deviceType') for i in items]} 名称{[i.get('productName') for i in items]}")
+            if items:
+                API_HOST = host
+                break
+        except Exception as e:
+            print(f"[诊断] {host} 异常 {type(e).__name__}")
+    url = f"https://{API_HOST}/v1/device/binds.json?userid={userid}"
     headers = {
         "apptoken": app_token,
         "User-Agent": "MiFit6.14.0 (M2007J1SC; Android 12; Density/2.75)"
@@ -282,7 +298,7 @@ def post_fake_brand_data(step, app_token, userid, device_id=None):
     data_json = re.sub(find_date.findall(data_json)[0], today, str(data_json))
     data_json = re.sub(find_step.findall(data_json)[0], step, str(data_json))
 
-    url = f'https://api-mifit-cn.huami.com/v1/data/band_data.json?&t={t}&r={str(uuid.uuid4())}'
+    url = f'https://{API_HOST}/v1/data/band_data.json?&t={t}&r={str(uuid.uuid4())}'
     head = {
         "apptoken": app_token,
         "Content-Type": "application/x-www-form-urlencoded"
