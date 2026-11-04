@@ -245,43 +245,45 @@ API_HOST = "api-mifit-cn.huami.com"
 CANDIDATE_HOSTS = ["api-mifit-cn.huami.com", "api-mifit-cn2.huami.com", "api-mifit-cn3.zepp.com", "api-mifit-us2.huami.com", "api-mifit-de2.huami.com", "api-mifit-sg.huami.com", "api-mifit.huami.com"]
 
 
+DEVICE_SOURCE = None
+
+
+def _safe_items(j):
+    if isinstance(j, dict):
+        for k in ("items", "data", "devices"):
+            v = j.get(k)
+            if isinstance(v, list):
+                return v
+    if isinstance(j, list):
+        return j
+    return []
+
+
 def get_user_device_id(app_token, userid) -> str | None:
-    global API_HOST
+    """按 Zepp App 的真实接口 /users/{uid}/devices 查绑定设备，日志只打印设备ID/类型/来源，不打印密钥"""
+    global API_HOST, DEVICE_SOURCE
+    ua = "MiFit6.14.0 (M2007J1SC; Android 12; Density/2.75)"
+    headers = {"apptoken": app_token, "User-Agent": ua, "appname": "com.xiaomi.hm.health", "appplatform": "android_phone"}
     for host in CANDIDATE_HOSTS:
-        try:
-            r = requests.get(f"https://{host}/v1/device/binds.json?userid={userid}", headers={"apptoken": app_token, "User-Agent": "MiFit6.14.0 (M2007J1SC; Android 12; Density/2.75)"}, timeout=8)
-            j = r.json()
-            items = j.get("items", []) if isinstance(j, dict) else []
-            print(f"[诊断] {host} 状态{r.status_code} 设备数{len(items)} 类型{[i.get('deviceType') for i in items]} 名称{[i.get('productName') for i in items]}")
-            if items:
-                API_HOST = host
-                break
-        except Exception as e:
-            print(f"[诊断] {host} 异常 {type(e).__name__}")
-    url = f"https://{API_HOST}/v1/device/binds.json?userid={userid}"
-    headers = {
-        "apptoken": app_token,
-        "User-Agent": "MiFit6.14.0 (M2007J1SC; Android 12; Density/2.75)"
-    }
-    try:
-        resp = requests.get(url, headers=headers, timeout=5).json()
-        items = resp.get("items", [])
-        if items:
-            # 1. 优先匹配 deviceType == 0 (手环/手表)
-            for item in items:
-                if item.get("deviceType") == 0:
-                    dev_id = item.get("deviceId") or item.get("mac")
-                    if dev_id:
-                        return str(dev_id).replace(":", "").upper()
-            # 2. 备选：按名称匹配
-            for item in items:
-                name = str(item.get("productName", "")).lower()
-                if any(k in name for k in ["band", "watch", "手环", "手表"]):
-                    dev_id = item.get("deviceId") or item.get("mac")
-                    if dev_id:
-                        return str(dev_id).replace(":", "").upper()
-    except Exception as e:
-        print(f"查询设备列表异常: {e}")
+        for path in (f"/users/{userid}/devices?enableMultiDevice=true", f"/users/{userid}/devices"):
+            try:
+                r = requests.get(f"https://{host}{path}", headers=headers, timeout=8)
+                try:
+                    items = _safe_items(r.json())
+                except Exception:
+                    items = []
+                brief = [{k: i.get(k) for k in ("deviceId", "macAddress", "deviceType", "deviceSource", "productId", "status") if isinstance(i, dict)} for i in items]
+                print(f"[设备] {host}{path.split('?')[0].replace(str(userid), 'UID')} 状态{r.status_code} 设备{brief}")
+                for i in items:
+                    if not isinstance(i, dict):
+                        continue
+                    dev = i.get("deviceId") or i.get("macAddress")
+                    if dev:
+                        API_HOST = host
+                        DEVICE_SOURCE = i.get("deviceSource")
+                        return str(dev).replace(":", "").upper()
+            except Exception as e:
+                print(f"[设备] {host} 异常 {type(e).__name__}")
     return None
 
 
@@ -307,6 +309,9 @@ def post_fake_brand_data(step, app_token, userid, device_id=None):
     target_dev_id = device_id if device_id else "DA932FFFFE8816E7"
     if device_id:
         data_json = str(data_json).replace("DA932FFFFE8816E7", target_dev_id)
+    if DEVICE_SOURCE is not None:
+        data_json = data_json.replace("src%22%3A24", f"src%22%3A{DEVICE_SOURCE}").replace("source%22%3A24", f"source%22%3A{DEVICE_SOURCE}")
+    print(f"[提交] host={API_HOST} did={target_dev_id} src={DEVICE_SOURCE if DEVICE_SOURCE is not None else 24}")
 
     data = f'userid={userid}&last_sync_data_time=1597306380&device_type=0&last_deviceid={target_dev_id}&data_json={data_json}'
 
